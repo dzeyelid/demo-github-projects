@@ -1,7 +1,7 @@
 # GitHub webhook を受ける環境をデプロイする
 
 ```bash
-WORKLOAD="from-redmond"
+WORKLOAD=""
 RESOURCE_GROUP_NAME="rg-${WORKLOAD}"
 LOCATION="japaneast"
 
