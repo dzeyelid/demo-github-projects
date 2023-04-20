@@ -1,0 +1,11 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "",
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "ENVIRONMENT": "development",
+    "GITHUB_WEBHOOKS_SECRET": "",
+    "GITHUB_PAT": "",
+    "PROJECT_VELOCITY": 5
+  }
+}
