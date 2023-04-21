@@ -34,6 +34,9 @@
       "extensions": [
         "astro-build.astro-vscode",
         "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "GraphQL.vscode-graphql-syntax",
+        "GraphQL.vscode-graphql",
         "ms-azuretools.vscode-azureresourcegroups",
         "ms-azuretools.vscode-azurefunctions",
         "ms-azuretools.vscode-bicep",
