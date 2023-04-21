@@ -1,21 +1,27 @@
-import { AzureFunction, Context, HttpRequest } from '@azure/functions'
+import type { AzureFunction, Context, HttpRequest } from '@azure/functions'
 import { Octokit } from 'octokit'
 import { createHmac } from 'crypto'
-import { QueryGetProjectV2Item, QueryGetProjectV2Items, ResponseProjectV2Item, ResponseProjectV2Items, ProjectV2ItemFieldIterationValue, ProjectV2ItemFieldNumberValue, ResponseProjectV2Fields, QueryGetProjectV2Fields, QueryUpdateWithinIterationFieldValue } from './graphql-queries'
+import type {
+  ResponseProjectV2Item,
+  ResponseProjectV2Items,
+  ProjectV2ItemFieldIterationValue,
+  ProjectV2ItemFieldNumberValue,
+  ResponseProjectV2Fields,
+} from './graphql-queries'
+import {
+  QueryGetProjectV2Item,
+  QueryGetProjectV2Items,
+  QueryGetProjectV2Fields,
+  QueryUpdateWithinIterationFieldValue,
+} from './graphql-queries'
 
-interface Items {
-  id: string
-  position: number
-  iterationId: string
-  storyPoint: number
-  actualPoint: number
-}
-
-const webhookProcessor: AzureFunction = async function (context: Context, req: HttpRequest): Promise<void> {
-
+const webhookProcessor: AzureFunction = async function (
+  context: Context,
+  req: HttpRequest
+): Promise<void> {
   context.log('HTTP trigger function processed a request.')
 
-  if (process.env.ENVIRONMENT != 'development') {
+  if (process.env.ENVIRONMENT !== 'development') {
     // Verify the sent body with x-hub-signature-256 header
     const signature = req.headers['x-hub-signature-256'].replace('sha256=', '')
 
@@ -29,7 +35,7 @@ const webhookProcessor: AzureFunction = async function (context: Context, req: H
       context.log('The sent body does not match the signature.')
       context.res = {
         status: 401,
-        body: 'The sent body does not match the signature.'
+        body: 'The sent body does not match the signature.',
       }
       return
     }
@@ -50,20 +56,26 @@ const webhookProcessor: AzureFunction = async function (context: Context, req: H
     context.log('This action does not need to be processed.')
     context.res = {
       status: 200,
-      body: 'Nothing to do.'
+      body: 'Nothing to do.',
     }
     return
   }
 
   // GitHub GraphQL API を利用して、Project V2 のアイテムの情報を取得する
   const octokit = new Octokit({
-    auth: `${process.env.GITHUB_PAT}`
+    auth: `${process.env.GITHUB_PAT}`,
   })
 
   const responses = await Promise.all([
-    octokit.graphql<ResponseProjectV2Item>(QueryGetProjectV2Item, {"projectV2ItemNodeId": itemNodeId}),
-    octokit.graphql<ResponseProjectV2Items>(QueryGetProjectV2Items, {projectNodeId}),
-    octokit.graphql<ResponseProjectV2Fields>(QueryGetProjectV2Fields, {projectNodeId})
+    octokit.graphql<ResponseProjectV2Item>(QueryGetProjectV2Item, {
+      projectV2ItemNodeId: itemNodeId,
+    }),
+    octokit.graphql<ResponseProjectV2Items>(QueryGetProjectV2Items, {
+      projectNodeId,
+    }),
+    octokit.graphql<ResponseProjectV2Fields>(QueryGetProjectV2Fields, {
+      projectNodeId,
+    }),
   ])
 
   // フォーカスするアイテムのイテレーションIDを取得する
@@ -71,7 +83,9 @@ const webhookProcessor: AzureFunction = async function (context: Context, req: H
   const focusedItemIteration = focusedItem.node.fieldValueByName.iterationId
 
   // Within iteration フィールドとオプションの ID を得る
-  const withinIterationField = responses[2].node.fields.nodes.find(field => field.name === 'Within iteration')
+  const withinIterationField = responses[2].node.fields.nodes.find(
+    (field) => field.name === 'Within iteration'
+  )
 
   // フォーカスするアイテムと同じイテレーションのアイテムを走査する
   let totalPointWithinTargetIterationUntilFocusedItem = 0
@@ -81,47 +95,63 @@ const webhookProcessor: AzureFunction = async function (context: Context, req: H
     let actualPoint = 0
 
     // itereationId, storyPoint, actualPoint を取得する
-    item.fieldValues.nodes.forEach(fieldValue => {
+    item.fieldValues.nodes.forEach((fieldValue) => {
       if (fieldValue.__typename === 'ProjectV2ItemFieldIterationValue') {
-        iterationId = (<ProjectV2ItemFieldIterationValue>fieldValue).iterationId
+        iterationId = (fieldValue as ProjectV2ItemFieldIterationValue)
+          .iterationId
       } else if (fieldValue.__typename === 'ProjectV2ItemFieldNumberValue') {
         const fieldName = fieldValue.field.name
         if (fieldName === 'Story point') {
-          storyPoint = (<ProjectV2ItemFieldNumberValue>fieldValue).number
+          storyPoint = (fieldValue as ProjectV2ItemFieldNumberValue).number
         } else if (fieldName === 'Actual point') {
-          actualPoint = (<ProjectV2ItemFieldNumberValue>fieldValue).number
+          actualPoint = (fieldValue as ProjectV2ItemFieldNumberValue).number
         }
       }
     })
 
     // 同じイテレーションのアイテムの場合、それまでの Actual Point または Story point を加算する
-    if (iterationId === focusedItemIteration && (actualPoint > 0 || storyPoint > 0)) {
-      totalPointWithinTargetIterationUntilFocusedItem += actualPoint > 0 ? actualPoint : storyPoint
+    if (
+      iterationId === focusedItemIteration &&
+      (actualPoint > 0 || storyPoint > 0)
+    ) {
+      totalPointWithinTargetIterationUntilFocusedItem +=
+        actualPoint > 0 ? actualPoint : storyPoint
     }
 
     // フォーカスするアイテムを見つけたら走査を終了する
     return item.id !== focusedItem.node.id
   })
 
-  context.log(`totalPointOfTragetIteration: ${totalPointWithinTargetIterationUntilFocusedItem}`)
+  context.log(
+    `totalPointOfTragetIteration: ${totalPointWithinTargetIterationUntilFocusedItem}`
+  )
 
   // もしターゲットのイテレーションの合計ポイントにより、Within iteration フィールドの値を設定する
   // 合計ポイントがベロシティを超えている場合は、Over iteration を設定する
   // それ以外は、within iteration を設定する
-  const withinIterationFieldTargetOptionValue = totalPointWithinTargetIterationUntilFocusedItem > parseInt(process.env.PROJECT_VELOCITY) ? 'over' : 'within'
-  const withinIterationFieldTargetOption = withinIterationField.options.find(option => option.name === withinIterationFieldTargetOptionValue)
+  const projectVelocity =
+    typeof process?.env?.PROJECT_VELOCITY === 'string'
+      ? parseInt(process.env.PROJECT_VELOCITY)
+      : 0
+  const withinIterationFieldTargetOptionValue =
+    totalPointWithinTargetIterationUntilFocusedItem > projectVelocity
+      ? 'over'
+      : 'within'
+  const withinIterationFieldTargetOption = withinIterationField?.options?.find(
+    (option) => option.name === withinIterationFieldTargetOptionValue
+  )
 
   // GitHub GraphQL API を利用して、Project V2 のアイテムの Within iteration カラムを更新する
   await octokit.graphql(QueryUpdateWithinIterationFieldValue, {
     projectNodeId,
     projectV2ItemNodeId: itemNodeId,
-    fieldNodeId: withinIterationField.id,
-    singleSelectOptionId: withinIterationFieldTargetOption.id
+    fieldNodeId: withinIterationField?.id,
+    singleSelectOptionId: withinIterationFieldTargetOption?.id,
   })
 
   context.res = {
     status: 200,
-    body: 'OK'
+    body: 'OK',
   }
 }
 
