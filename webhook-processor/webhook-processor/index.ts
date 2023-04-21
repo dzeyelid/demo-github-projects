@@ -39,9 +39,9 @@ const webhookProcessor: AzureFunction = async function (context: Context, req: H
   // - アクションの種別
   // - Project V2 のプロジェクトのノードID
   // - Project V2 のアイテムのノードID
-  const action = req.body.payload.action
-  const projectNodeId = req.body.payload.projects_v2_item.project_node_id
-  const itemNodeId = req.body.payload.projects_v2_item.node_id
+  const action = req.body.action
+  const projectNodeId = req.body.projects_v2_item.project_node_id
+  const itemNodeId = req.body.projects_v2_item.node_id
 
   // アクションが以下の場合は処理をせず終了する
   // - archived
@@ -80,11 +80,6 @@ const webhookProcessor: AzureFunction = async function (context: Context, req: H
     let storyPoint = 0
     let actualPoint = 0
 
-    // フォーカスするアイテムを見つけたら走査を終了する
-    if (item.id === focusedItem.node.id) {
-      return false
-    }
-
     // itereationId, storyPoint, actualPoint を取得する
     item.fieldValues.nodes.forEach(fieldValue => {
       if (fieldValue.__typename === 'ProjectV2ItemFieldIterationValue') {
@@ -104,7 +99,8 @@ const webhookProcessor: AzureFunction = async function (context: Context, req: H
       totalPointWithinTargetIterationUntilFocusedItem += actualPoint > 0 ? actualPoint : storyPoint
     }
 
-    return true
+    // フォーカスするアイテムを見つけたら走査を終了する
+    return item.id !== focusedItem.node.id
   })
 
   context.log(`totalPointOfTragetIteration: ${totalPointWithinTargetIterationUntilFocusedItem}`)
